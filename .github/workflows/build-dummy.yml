@@ -1,0 +1,46 @@
+name: Build dummy
+
+on:
+  workflow_dispatch:
+    inputs:
+      pkgname:
+        description: Package name to provide
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Build package
+        env:
+          PKGNAME: ${{ inputs.pkgname }}
+        run: |
+          printf 'pkgname=%s-dummy\npkgver=1.0\npkgrel=1\narch=(any)\nprovides=(%s)\n' \
+            "$PKGNAME" "$PKGNAME" > PKGBUILD
+          useradd --create-home builder
+          chown -R builder:builder .
+          runuser -u builder -- makepkg --noconfirm
+
+      - name: Upload package to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.pkgname }}-dummy
+          path: "*.pkg.tar.zst"
+
+      - name: Upload package to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          package="$(find . -maxdepth 1 -name '*.pkg.tar.zst' -print -quit)"
+          token_var=CODEBERG_TOKEN
+          auth_header="$(printf '%s %s' 'Bearer' "${!token_var}")"
+          curl -X PUT \
+            https://codeberg.org/api/packages/stevenlele/arch/custom \
+            -H "Authorization: $auth_header" \
+            -H 'Content-Type: application/octet-stream' \
+            --data-binary "@$package"
