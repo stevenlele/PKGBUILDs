@@ -30,7 +30,7 @@ jobs:
           runuser -u builder -- makepkg --noconfirm
 
       - name: Upload package to artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.pkgname }}-dummy
           path: "*.pkg.tar.zst"
