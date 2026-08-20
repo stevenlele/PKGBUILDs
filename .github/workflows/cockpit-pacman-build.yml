@@ -29,8 +29,9 @@ jobs:
 
       - name: Check out repository
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
+
+      - name: Check out cockpit-pacman submodule
+        run: git submodule update --init --depth 1 cockpit-pacman
 
       - name: Prepare build user
         run: |
