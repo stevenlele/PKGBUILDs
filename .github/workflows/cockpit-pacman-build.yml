@@ -50,7 +50,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: cockpit-pacman
-          path: cockpit-pacman/*.pkg.tar.zst
+          path: |
+            cockpit-pacman/*.pkg.tar.zst
+            !cockpit-pacman/*-debug-*.pkg.tar.zst
           if-no-files-found: error
 
       - name: Upload package to Codeberg
@@ -58,7 +60,9 @@ jobs:
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
-          for package in cockpit-pacman/*.pkg.tar.zst; do
+          find cockpit-pacman -maxdepth 1 -type f \
+            -name '*.pkg.tar.zst' ! -name '*-debug-*.pkg.tar.zst' -print0 |
+          while IFS= read -r -d '' package; do
             curl --fail-with-body --request PUT \
               https://codeberg.org/api/packages/stevenlele/arch/custom \
               --header "Authorization: Bearer $CODEBERG_TOKEN" \
