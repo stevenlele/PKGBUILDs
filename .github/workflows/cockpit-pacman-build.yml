@@ -30,10 +30,51 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Mark workspace as safe for Git
+      - name: Debug Git configuration
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE/*"
+          set +e
+          echo '=== identity and environment ==='
+          id
+          printf 'HOME=%q\n' "$HOME"
+          printf 'XDG_CONFIG_HOME=%q\n' "${XDG_CONFIG_HOME:-}"
+          printf 'GIT_CONFIG_GLOBAL=%q\n' "${GIT_CONFIG_GLOBAL:-}"
+          printf 'GIT_CONFIG_SYSTEM=%q\n' "${GIT_CONFIG_SYSTEM:-}"
+          printf 'GITHUB_WORKSPACE=%q\n' "$GITHUB_WORKSPACE"
+          pwd
+
+          echo '=== candidate Git configuration files ==='
+          find / -xdev -type f \( \
+            -name .gitconfig -o \
+            -path '*/.config/git/config' -o \
+            -path '*/.git/config' -o \
+            -path '/etc/gitconfig' \
+          \) -printf '%M %u:%g %p\n' 2>/dev/null | sort -u
+
+          echo '=== Git config: system ==='
+          git config --system --list --show-origin --show-scope --includes
+
+          echo '=== Git config: global ==='
+          git config --global --list --show-origin --show-scope --includes
+
+          echo '=== Git config: repository/local ==='
+          git config --local --list --show-origin --show-scope --includes
+
+          echo '=== effective Git config ==='
+          git config --list --show-origin --show-scope --includes
+
+          echo '=== safe.directory entries ==='
+          git config --get-all safe.directory
+
+          echo '=== repository ownership and Git directories ==='
+          stat -c '%A %u:%g %U:%G %n' "$GITHUB_WORKSPACE" \
+            "$GITHUB_WORKSPACE/.git" 2>&1
+          find "$GITHUB_WORKSPACE" -type d -name .git \
+            -exec stat -c '%A %u:%g %U:%G %n' {} \; 2>/dev/null
+
+      # - name: Mark workspace as safe for Git
+      #   run: |
+      #     git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      #     git config --global --add safe.directory "$GITHUB_WORKSPACE/*"
 
       - name: Check out cockpit-pacman submodule
         run: git submodule update --init --depth 1 cockpit-pacman
