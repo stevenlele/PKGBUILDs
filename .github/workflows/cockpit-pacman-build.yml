@@ -1,0 +1,61 @@
+name: Build cockpit-pacman
+
+on:
+  pull_request:
+    paths:
+      - cockpit-pacman
+      - .github/workflows/cockpit-pacman-build.yml
+  push:
+    paths:
+      - cockpit-pacman
+      - .github/workflows/cockpit-pacman-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cockpit-pacman-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Prepare build user
+        run: |
+          useradd --create-home builder
+          printf 'builder ALL=(ALL:ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Build package
+        run: |
+          runuser -u builder -- bash -c \
+            'cd "$GITHUB_WORKSPACE/cockpit-pacman" && makepkg --syncdeps --noconfirm --cleanbuild'
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cockpit-pacman
+          path: cockpit-pacman/*.pkg.tar.zst
+          if-no-files-found: error
+
+      - name: Upload package to Codeberg
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          for package in cockpit-pacman/*.pkg.tar.zst; do
+            curl --fail-with-body --request PUT \
+              https://codeberg.org/api/packages/stevenlele/arch/custom \
+              --header "Authorization: Bearer $CODEBERG_TOKEN" \
+              --header 'Content-Type: application/octet-stream' \
+              --data-binary "@$package"
+          done

@@ -1,0 +1,3 @@
+[submodule "cockpit-pacman"]
+  path = cockpit-pacman
+  url = https://aur.archlinux.org/cockpit-pacman.git
