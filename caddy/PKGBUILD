@@ -1,7 +1,7 @@
 pkgname=caddy-custom
 _caddy_version=$(awk '$1 == "github.com/caddyserver/caddy/v2" { print $2; exit }' go.mod)
 pkgver=${_caddy_version#v}
-pkgrel=$(TZ=Asia/Shanghai date '+%Y%m%d.%H%M%S')
+pkgrel=$(TZ=Asia/Shanghai date '+%Y%m%d%H%M%S')
 pkgdesc='Fast web server with automatic HTTPS'
 arch=(x86_64)
 url='https://github.com/caddyserver/caddy'
