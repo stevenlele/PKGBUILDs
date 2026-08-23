@@ -7,6 +7,8 @@ on:
       - caddy-packaging
       - .github/workflows/caddy-build.yml
   push:
+    branches:
+      - main
     paths:
       - caddy/**
       - caddy-packaging
@@ -31,7 +33,7 @@ jobs:
         run: git submodule update --init --depth 1 caddy-packaging
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: caddy/go.mod
           cache-dependency-path: caddy/go.sum

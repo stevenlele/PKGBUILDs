@@ -46,7 +46,6 @@ _build_caddy() {
   export GOPATH="$srcdir"
 
   local ld_flags=" \
-    -X github.com/caddyserver/caddy/v2.CustomVersion=v${pkgver} \
     -s -w \
   "
   go build -v -ldflags "$ld_flags" -o build/caddy .
@@ -65,7 +64,7 @@ check() {
   cd ${pkgname}
   version=$(./build/caddy version)
   echo "Caddy version: ${version}"
-  if [[ $version != v$pkgver ]]; then
+  if [[ ${version%% *} != v$pkgver ]]; then
     exit 1
   fi
   ./build/caddy list-modules | grep -Fxq dns.providers.duckdns

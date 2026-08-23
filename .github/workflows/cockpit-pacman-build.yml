@@ -6,6 +6,8 @@ on:
       - cockpit-pacman
       - .github/workflows/cockpit-pacman-build.yml
   push:
+    branches:
+      - main
     paths:
       - cockpit-pacman
       - .github/workflows/cockpit-pacman-build.yml

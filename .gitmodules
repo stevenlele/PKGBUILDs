@@ -1,7 +1,6 @@
 [submodule "cockpit-pacman"]
-  path = cockpit-pacman
-  url = https://aur.archlinux.org/cockpit-pacman.git
-
+	path = cockpit-pacman
+	url = https://aur.archlinux.org/cockpit-pacman.git
 [submodule "caddy-packaging"]
 	path = caddy-packaging
 	url = https://gitlab.archlinux.org/archlinux/packaging/packages/caddy.git
