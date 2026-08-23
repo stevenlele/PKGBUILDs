@@ -1,0 +1,86 @@
+pkgname=caddy-custom
+_caddy_version=$(awk '$1 == "github.com/caddyserver/caddy/v2" { print $2; exit }' go.mod)
+pkgver=${_caddy_version#v}
+pkgrel=$(TZ=Asia/Shanghai date '+%Y%m%d.%H%M%S')
+pkgdesc='Fast web server with automatic HTTPS'
+arch=(x86_64)
+url='https://github.com/caddyserver/caddy'
+license=(Apache-2.0)
+provides=("caddy=${pkgver}")
+conflicts=(caddy)
+depends=(
+  mailcap
+)
+makedepends=(
+  go
+)
+options=(!debug !lto)
+source=(
+  main.go
+  go.mod
+  go.sum
+  caddy-api.service
+  caddy.tmpfiles
+  caddy.sysusers
+)
+
+prepare() {
+  install -d "$pkgname"
+  install -m 644 main.go go.mod go.sum "$pkgname/"
+
+  if [[ -x $startdir/build/caddy ]]; then
+    install -Dm 755 "$startdir/build/caddy" "$pkgname/build/caddy"
+    return
+  fi
+
+  cd ${pkgname}
+  export GOFLAGS=-modcacherw
+  export GOPATH="$srcdir"
+  go mod download
+  go mod verify
+}
+
+_build_caddy() {
+  export CGO_ENABLED=0
+  export GOFLAGS="-mod=readonly -modcacherw -buildvcs=false -trimpath -tags=nobadger,nomysql,nopgx"
+  export GOPATH="$srcdir"
+
+  local ld_flags=" \
+    -X github.com/caddyserver/caddy/v2.CustomVersion=v${pkgver} \
+    -s -w \
+  "
+  go build -v -ldflags "$ld_flags" -o build/caddy .
+}
+
+build() {
+  cd ${pkgname}
+  [[ -x build/caddy ]] || _build_caddy
+
+  for i in zsh bash fish; do
+    ./build/caddy completion $i > caddy.$i
+  done
+}
+
+check() {
+  cd ${pkgname}
+  version=$(./build/caddy version)
+  echo "Caddy version: ${version}"
+  if [[ $version != v$pkgver ]]; then
+    exit 1
+  fi
+  ./build/caddy list-modules | grep -Fxq dns.providers.duckdns
+}
+
+package() {
+  install -vDm 644 -t "${pkgdir}/usr/lib/systemd/system" caddy-api.service
+  install -vDm 644 caddy.tmpfiles "${pkgdir}/usr/lib/tmpfiles.d/caddy.conf"
+  install -vDm 644 caddy.sysusers "${pkgdir}/usr/lib/sysusers.d/caddy.conf"
+
+  install -vd "${pkgdir}/etc/caddy/conf.d"
+
+  install -vDm 644 ${pkgname}/caddy.zsh "${pkgdir}/usr/share/zsh/site-functions/_caddy"
+  install -vDm 644 ${pkgname}/caddy.bash "${pkgdir}/usr/share/bash-completion/completions/caddy"
+  install -vDm 644 ${pkgname}/caddy.fish "${pkgdir}/usr/share/fish/vendor_completions.d/caddy.fish"
+
+  install -vDm 755 -t "${pkgdir}/usr/bin" ${pkgname}/build/caddy
+}

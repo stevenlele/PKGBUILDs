@@ -1,0 +1,81 @@
+name: Build Caddy
+
+on:
+  pull_request:
+    paths:
+      - caddy/**
+      - caddy-packaging
+      - .github/workflows/caddy-build.yml
+  push:
+    paths:
+      - caddy/**
+      - caddy-packaging
+      - .github/workflows/caddy-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caddy-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Check out Caddy packaging
+        run: git submodule update --init --depth 1 caddy-packaging
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: caddy/go.mod
+          cache-dependency-path: caddy/go.sum
+
+      - name: Validate Go module
+        working-directory: caddy
+        run: |
+          go mod tidy -diff
+          go mod verify
+
+      - name: Build Caddy
+        working-directory: caddy
+        run: |
+          source PKGBUILD
+          pkgname=.
+          srcdir=$(go env GOPATH)
+          _build_caddy
+          check
+
+      - name: Assemble Arch package
+        uses: docker://archlinux:base-devel
+        with:
+          entrypoint: /usr/bin/bash
+          args: >-
+            -c "cp caddy-packaging/{caddy-api.service,caddy.tmpfiles,caddy.sysusers} caddy/ &&
+            useradd -m -u 1001 builder &&
+            runuser -u builder -- makepkg --dir caddy --nodeps --skipchecksums --nocheck"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: caddy
+          path: caddy/*.pkg.tar.zst
+          if-no-files-found: error
+
+      - name: Upload package to Codeberg
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          for package in caddy/*.pkg.tar.zst; do
+            curl --fail-with-body --request PUT \
+              https://codeberg.org/api/packages/stevenlele/arch/custom \
+              --header "Authorization: Bearer $CODEBERG_TOKEN" \
+              --header 'Content-Type: application/octet-stream' \
+              --data-binary "@$package"
+          done
