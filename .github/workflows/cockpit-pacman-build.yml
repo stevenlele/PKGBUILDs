@@ -23,38 +23,34 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
     steps:
-      # Git is required by actions/checkout and the explicit submodule update below.
-      - name: Install Git
-        run: pacman -Syu --noconfirm --needed git
-
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Prepare build user
-        run: |
-          useradd --create-home builder
-          printf 'builder ALL=(ALL:ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
-          chmod 0440 /etc/sudoers.d/builder
-          chown -R builder:builder "$GITHUB_WORKSPACE"
+      - name: Check out AUR submodule
+        run: git submodule update --init --depth 1 cockpit-pacman
 
-      # Update the submodule here, after chown and as builder, to avoid safe.directory issues.
       - name: Build package
-        run: |
-          runuser -u builder -- bash -c \
-            'cd "$GITHUB_WORKSPACE" &&
-             git submodule update --init --depth 1 cockpit-pacman &&
-             cd "$GITHUB_WORKSPACE/cockpit-pacman" &&
-             makepkg --syncdeps --noconfirm --cleanbuild'
+        uses: docker://archlinux:base-devel
+        with:
+          entrypoint: /usr/bin/bash
+          args: >-
+            -c "pacman -Syu --noconfirm --needed gnupg sudo &&
+            useradd --create-home --uid 1001 builder &&
+            printf 'builder ALL=(ALL:ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder &&
+            chmod 0440 /etc/sudoers.d/builder &&
+            runuser -u builder -- bash -c '
+            gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 100A50E46DC2C244F838DCBFABD48F465F4434BD &&
+            makepkg --dir cockpit-pacman --syncdeps --noconfirm'"
+
+      - name: Remove debug package
+        run: rm cockpit-pacman/*-debug-*.pkg.tar.zst
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
           name: cockpit-pacman
-          path: |
-            cockpit-pacman/*.pkg.tar.zst
-            !cockpit-pacman/*-debug-*.pkg.tar.zst
+          path: cockpit-pacman/*.pkg.tar.zst
           if-no-files-found: error
 
       - name: Upload package to Codeberg
@@ -62,9 +58,7 @@ jobs:
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
-          find cockpit-pacman -maxdepth 1 -type f \
-            -name '*.pkg.tar.zst' ! -name '*-debug-*.pkg.tar.zst' -print0 |
-          while IFS= read -r -d '' package; do
+          for package in cockpit-pacman/*.pkg.tar.zst; do
             curl --fail-with-body --request PUT \
               https://codeberg.org/api/packages/stevenlele/arch/custom \
               --header "Authorization: Bearer $CODEBERG_TOKEN" \
