@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"net"
@@ -63,32 +62,25 @@ func (l *abortHTTPListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &abortHTTPConn{
-		Conn: conn,
-		r:    bufio.NewReader(conn),
-	}, nil
+	return &abortHTTPConn{Conn: conn}, nil
 }
 
 type abortHTTPConn struct {
 	net.Conn
-	r       *bufio.Reader
 	checked bool
 }
 
 func (c *abortHTTPConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
 	if !c.checked {
 		c.checked = true
 
-		first, err := c.r.Peek(5)
-		if err != nil {
-			return 0, err
-		}
-		if looksLikeHTTP(first) {
+		if n >= 5 && looksLikeHTTP(p[:5]) {
 			_ = c.Conn.Close()
 			return 0, net.ErrClosed
 		}
 	}
-	return c.r.Read(p)
+	return n, err
 }
 
 func looksLikeHTTP(hdr []byte) bool {
