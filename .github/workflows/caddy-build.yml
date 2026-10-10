@@ -35,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: caddy/go.mod
+          go-version: '1.26'
           cache-dependency-path: caddy/go.sum
 
       - name: Validate Go module
